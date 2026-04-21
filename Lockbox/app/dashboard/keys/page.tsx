@@ -3,6 +3,13 @@
 import { useState, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -21,6 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
 import {
   Select,
   SelectContent,
@@ -29,7 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { StatusBadge } from '@/components/status-badge'
-import { Copy, Trash2, Info, AlertTriangle } from 'lucide-react'
+import { Copy, Trash2, Info, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,6 +78,23 @@ export default function KeysPage() {
     return scores
   }, [logs])
   const [open,  setOpen]  = useState(false)
+  const [selectedKey, setSelectedKey] = useState<ApiKeyRecord | null>(null)
+
+  // ── Copy Key ────────────────────────────────────────────────────────────────
+  const handleCopy = useCallback((id: string) => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(id).then(() => toast.success('API key copied to clipboard'))
+    } else {
+      // Fallback for unsupported browsers
+      const el = document.createElement('textarea')
+      el.value = id
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      toast.success('API key copied to clipboard')
+    }
+  }, [])
 
   const [formData, setFormData] = useState({
     name:        '',
@@ -313,40 +338,73 @@ export default function KeysPage() {
                       </TableCell>
                       <TableCell className="text-foreground text-sm">{key.lastUsed}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <button className="p-1 hover:bg-accent/10 rounded" title="Copy key ID" onClick={() => navigator.clipboard?.writeText(key.id)}>
-                            <Copy className="h-4 w-4 text-muted-foreground hover:text-accent" />
-                          </button>
-                          <button className="p-1 hover:bg-accent/10 rounded" title="View details">
-                            <Info className="h-4 w-4 text-muted-foreground hover:text-accent" />
-                          </button>
-                          {key.status === 'active' && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <button className="p-1 hover:bg-accent/10 rounded" title="Revoke key">
-                                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        <TooltipProvider delayDuration={300}>
+                          <div className="flex items-center gap-1.5">
+                            {/* Copy */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  aria-label="Copy API key"
+                                  className="p-1.5 rounded-md hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+                                  onClick={() => handleCopy(key.id)}
+                                >
+                                  <Copy className="h-4 w-4" />
                                 </button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent className="border-border bg-card">
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Revoke "{key.name}"?</AlertDialogTitle>
-                                  <AlertDialogDescription className="text-muted-foreground">
-                                    This will immediately block all requests made with this key.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <div className="flex gap-3 justify-end mt-2">
-                                  <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    onClick={() => handleRevoke(key.id)}
-                                  >
-                                    Revoke Key
-                                  </AlertDialogAction>
-                                </div>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Copy API key</TooltipContent>
+                            </Tooltip>
+
+                            {/* Info */}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  aria-label="View key details"
+                                  className="p-1.5 rounded-md hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+                                  onClick={() => setSelectedKey(key)}
+                                >
+                                  <Info className="h-4 w-4" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">View details</TooltipContent>
+                            </Tooltip>
+
+                            {/* Revoke */}
+                            {key.status === 'active' && (
+                              <AlertDialog>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <AlertDialogTrigger asChild>
+                                      <button
+                                        aria-label="Revoke key"
+                                        className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors focus:outline-none focus:ring-1 focus:ring-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </AlertDialogTrigger>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">Revoke key</TooltipContent>
+                                </Tooltip>
+                                <AlertDialogContent className="border-border bg-card">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Revoke "{key.name}"?</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-muted-foreground">
+                                      This will immediately block all requests made with this key.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <div className="flex gap-3 justify-end mt-2">
+                                    <AlertDialogCancel className="border-border">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      onClick={() => handleRevoke(key.id)}
+                                    >
+                                      Revoke Key
+                                    </AlertDialogAction>
+                                  </div>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        </TooltipProvider>
                       </TableCell>
                     </TableRow>
                   )
@@ -356,6 +414,58 @@ export default function KeysPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Key Details Modal ── */}
+      <Dialog open={!!selectedKey} onOpenChange={(o) => !o && setSelectedKey(null)}>
+        <DialogContent className="border-border bg-card max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-primary" />
+              Key Details
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Full metadata for {selectedKey?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedKey && (() => {
+            const riskCount = risks[selectedKey.id] ?? 0
+            const riskColor = riskCount === 0 ? 'text-green-400' : riskCount < 3 ? 'text-yellow-400' : 'text-red-400'
+            return (
+              <div className="mt-1 space-y-3">
+                {[
+                  { label: 'Key ID',       value: <span className="font-mono text-xs break-all">{selectedKey.id}</span> },
+                  { label: 'Name',         value: selectedKey.name },
+                  { label: 'Service',      value: selectedKey.service },
+                  { label: 'Status',       value: <StatusBadge status={selectedKey.status === 'active' ? 'active' : 'revoked'} label={selectedKey.status.charAt(0).toUpperCase() + selectedKey.status.slice(1)} /> },
+                  { label: 'TTL',          value: selectedKey.ttl },
+                  { label: 'Rate Limit',   value: `${selectedKey.rateLimit} req/min` },
+                  { label: 'Risk Score',   value: <span className={`font-semibold ${riskColor}`}>{riskCount} blocked requests</span> },
+                  { label: 'Created',      value: selectedKey.createdAt ?? 'Unknown' },
+                  { label: 'Last Used',    value: selectedKey.lastUsed },
+                  { label: 'Allowed IPs',  value: selectedKey.allowedIps?.join(', ') || 'All' },
+                ].map(row => (
+                  <div key={row.label} className="flex items-start justify-between gap-4 py-1.5 border-b border-border/50 last:border-0">
+                    <span className="text-xs text-muted-foreground shrink-0 w-24">{row.label}</span>
+                    <span className="text-sm text-foreground text-right">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+          <div className="flex justify-between gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => selectedKey && handleCopy(selectedKey.id)}
+              className="border-border"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1.5" />
+              Copy Key ID
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSelectedKey(null)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

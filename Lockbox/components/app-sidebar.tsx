@@ -10,7 +10,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import { BarChart3, Key, LogOut, FileText, Settings, MessageSquare, Zap } from 'lucide-react'
+import { BarChart3, Key, LogOut, FileText, Settings, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from 'firebase/auth'
@@ -41,11 +41,6 @@ const menuItems = [
     title: 'Test Console',
     url: '/dashboard/console',
     icon: Zap,
-  },
-  {
-    title: 'AI Assistant',
-    url: '/dashboard/assistant',
-    icon: MessageSquare,
   },
 ]
 
