@@ -1,44 +1,93 @@
-import { GoogleGenAI } from '@google/genai'
 import { NextResponse } from 'next/server'
 
-// Safely handle missing keys by falling back to empty string so the client can fallback to heuristics
-const apiKey = process.env.GEMINI_API_KEY || ''
-const ai = apiKey !== 'dummy-gemini-key' && apiKey !== '' ? new GoogleGenAI({ apiKey }) : null
+const OLLAMA_URL = 'http://localhost:11434/api/generate'
+const MODEL = 'gemma3:4b'
+
+const SYSTEM_PROMPT = `You are LockBox AI, a security analyst for API key management.
+
+Given logs, keys, and policies:
+- Identify why a request was blocked or allowed (cite key ID, IP, reason).
+- If the same IP appears in multiple blocks, mark it as suspicious.
+- If the same key is blocked repeatedly, flag it as high risk.
+- Always suggest a concrete, specific fix.
+
+Respond in this format only:
+Finding: [what happened - use exact IDs, IPs, reasons from the data]
+Fix: [exact action to take - e.g. whitelist IP x.x.x.x, increase rate limit to N]
+Impact: [what happens if not fixed]`
 
 export async function POST(req: Request) {
-  try {
-    if (!ai) {
-      return NextResponse.json({ error: 'Missing or Mock Gemini API Key' }, { status: 500 })
-    }
+  const { message, context } = await req.json().catch(() => ({ message: '', context: {} }))
 
-    const { message, history, context } = await req.json()
+  // Compact context — essential fields only, no pretty-printing
+  const ctx = {
+    keys: (context.keys ?? []).slice(0, 3).map((k: Record<string, unknown>) => ({
+      id: k.id, name: k.name, status: k.status, rateLimit: k.rateLimit, allowedIps: k.allowedIps,
+    })),
+    logs: (context.logs ?? []).slice(0, 5).map((l: Record<string, unknown>) => ({
+      keyId: l.keyId, action: l.action, ip: l.ip, reason: l.reason, policyTriggered: l.policyTriggered,
+    })),
+    policies: {
+      mode: context.policies?.mode,
+      ipRestrictions: context.policies?.ipRestrictions,
+      rateLimit: context.policies?.rateLimit,
+    },
+  }
 
-    const prompt = `
-You are the Lockbox AI Security Assistant. Your job is to help the admin understand and manage their API security platform.
+  // Structured prompt — clear sections for local model, no conversation history
+  const prompt = `### SYSTEM
+${SYSTEM_PROMPT}
 
-CURRENT DASHBOARD CONTEXT:
-${JSON.stringify(context, null, 2)}
+### DATA
+${JSON.stringify(ctx)}
 
-RECENT CONVERSATION (for context):
-${JSON.stringify(history.slice(-5), null, 2)}
-
-NEW USER QUESTION:
+### QUESTION
 ${message}
 
-Instructions:
-1. Identify if the user is asking about why a request was blocked/allowed, and precisely explain the reason based on the provided JSON logs.
-2. Suggest fixes for blocked requests (e.g. recommend they whitelist the specific IP if missing, or adjust rate limits in the policies).
-3. Keep answers incredibly concise and practical. Never ramble.
-4. Respond strictly in clear Markdown. Do not include boilerplate greetings.
+### ANSWER
 `
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    })
+  try {
+    let res: Response
+    try {
+      res = await fetch(OLLAMA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: MODEL, prompt, stream: false }),
+      })
+    } catch {
+      // Ollama server is unreachable
+      console.error('[/api/chat] Ollama server is down or not running')
+      return NextResponse.json(
+        { error: 'Ollama not running. Start it with: ollama serve', fallback: true },
+        { status: 500 }
+      )
+    }
 
-    return NextResponse.json({ text: response.text })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Unknown Gemini API error' }, { status: 500 })
+    if (!res.ok) {
+      const body = await res.text().catch(() => res.statusText)
+      console.error('[/api/chat] Ollama error:', res.status, body)
+      return NextResponse.json(
+        { error: `Ollama request failed (${res.status}): ${body}`, fallback: true },
+        { status: 500 }
+      )
+    }
+
+    const data = await res.json().catch(() => null)
+    const text: string = data?.response?.trim() ?? ''
+
+    if (!text) {
+      console.error('[/api/chat] Ollama returned empty response')
+      return NextResponse.json(
+        { error: 'Empty AI response. The model may still be loading.', fallback: true },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ text })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[/api/chat] Unexpected error:', msg)
+    return NextResponse.json({ error: msg, fallback: true }, { status: 500 })
   }
 }
