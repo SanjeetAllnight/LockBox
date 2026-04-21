@@ -57,7 +57,13 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-base font-semibold">LockBox</SidebarGroupLabel>
+          <div className="flex justify-between items-center pr-2">
+            <SidebarGroupLabel className="text-base font-semibold">LockBox</SidebarGroupLabel>
+            <div className="flex items-center gap-2 px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse transition-all shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-emerald-600 dark:text-emerald-400">Live</span>
+            </div>
+          </div>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (

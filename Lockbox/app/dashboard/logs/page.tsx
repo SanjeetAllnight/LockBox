@@ -234,10 +234,10 @@ export default function LogsPage() {
 
                   // Highlight class: new entries get a colour flash animation
                   const highlightClass = isNew
-                    ? log.action === 'ALLOW' ? 'log-row-new-allow' : 'log-row-new-block'
+                    ? 'animate-in fade-in slide-in-from-top-4 duration-500 ' + (log.action === 'ALLOW' ? 'bg-emerald-500/10' : 'bg-destructive/20 shadow-[inset_4px_0_0_0_rgba(239,68,68,1)]')
                     : log.action === 'BLOCK'
-                      ? 'bg-red-950/10 hover:bg-red-950/20'
-                      : 'hover:bg-accent/5'
+                      ? 'bg-destructive/5 hover:bg-destructive/10 shadow-[inset_4px_0_0_0_rgba(239,68,68,0.5)] transition-all'
+                      : 'hover:bg-accent/5 transition-all'
 
                   return (
                     <Fragment key={log.id}>

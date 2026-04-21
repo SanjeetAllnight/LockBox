@@ -30,10 +30,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser)
       setLoading(false)
 
-      const isProtected = pathname?.startsWith('/dashboard') || pathname === '/'
+      const isProtected = pathname?.startsWith('/dashboard')
       if (!currentUser && isProtected) {
         router.push('/login')
-      } else if (currentUser && (pathname === '/login' || pathname === '/signup')) {
+      } else if (currentUser && (pathname === '/login' || pathname === '/signup' || pathname === '/')) {
         router.push('/dashboard')
       }
     })

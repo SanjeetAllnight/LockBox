@@ -18,8 +18,19 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <FirebaseSync />
-      <div className="flex h-screen w-full overflow-hidden">
-        <AppSidebar />
+      <div className="flex h-screen w-full overflow-hidden bg-background relative selection:bg-primary/30">
+        
+        {/* Background Grid Pattern */}
+        <div 
+          className="fixed inset-0 z-0 pointer-events-none opacity-[0.03] dark:opacity-[0.05]"
+          style={{
+            backgroundImage: 'linear-gradient(to right, hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--foreground)) 1px, transparent 1px)',
+            backgroundSize: '40px 40px'
+          }}
+        />
+
+        <div className="relative z-10 flex w-full h-full">
+          <AppSidebar />
 
         {/* Main content — shrinks when AI panel is open */}
         <main
@@ -31,6 +42,7 @@ export default function DashboardLayout({
 
         {/* Right-side AI Panel */}
         <AiPanel open={aiPanelOpen} onClose={() => setAiPanelOpen(false)} />
+        </div>
       </div>
 
       {/* Floating Radial FAB */}

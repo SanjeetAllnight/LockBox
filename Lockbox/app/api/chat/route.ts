@@ -3,18 +3,23 @@ import { NextResponse } from 'next/server'
 const OLLAMA_URL = 'http://localhost:11434/api/generate'
 const MODEL = 'gemma3:4b'
 
-const SYSTEM_PROMPT = `You are LockBox AI, a security analyst for API key management.
+const SYSTEM_PROMPT = `You are LockBox AI, a professional API security monitoring system.
 
-Given logs, keys, and policies:
-- Identify why a request was blocked or allowed (cite key ID, IP, reason).
-- If the same IP appears in multiple blocks, mark it as suspicious.
-- If the same key is blocked repeatedly, flag it as high risk.
-- Always suggest a concrete, specific fix.
+Pattern rules (check data before answering):
+- Same IP blocked 2+ times → prepend "⚠ Suspicious activity detected"
+- Same key blocked 2+ times → prepend "🔐 Key at risk"
+- Multiple different failures → summarize the pattern, do not list each one individually.
 
-Respond in this format only:
-Finding: [what happened - use exact IDs, IPs, reasons from the data]
-Fix: [exact action to take - e.g. whitelist IP x.x.x.x, increase rate limit to N]
-Impact: [what happens if not fixed]`
+Response rules:
+- ONE root cause only. ONE fix only. ONE impact only.
+- Never repeat the same information in Finding and Fix.
+- Total response: 4-5 lines maximum. No filler phrases.
+
+Format (strictly):
+[label if pattern detected]
+Finding: [root cause — cite key ID or trigger reason, not every IP]
+Fix: [single most impactful action]
+Impact: [one short consequence]`
 
 export async function POST(req: Request) {
   const { message, context } = await req.json().catch(() => ({ message: '', context: {} }))
@@ -34,7 +39,6 @@ export async function POST(req: Request) {
     },
   }
 
-  // Structured prompt — clear sections for local model, no conversation history
   const prompt = `### SYSTEM
 ${SYSTEM_PROMPT}
 
@@ -56,7 +60,6 @@ ${message}
         body: JSON.stringify({ model: MODEL, prompt, stream: false }),
       })
     } catch {
-      // Ollama server is unreachable
       console.error('[/api/chat] Ollama server is down or not running')
       return NextResponse.json(
         { error: 'Ollama not running. Start it with: ollama serve', fallback: true },

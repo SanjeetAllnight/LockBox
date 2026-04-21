@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { X, Send, Sparkles, AlertTriangle } from 'lucide-react'
+import { X, Send, Sparkles, AlertTriangle, ShieldAlert, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useStore } from '@/lib/store'
@@ -16,6 +16,29 @@ interface Message {
 interface AiPanelProps {
   open: boolean
   onClose: () => void
+}
+
+function parseAiResponse(text: string) {
+  const lines = text.split('\n')
+  const result: any = { isStructured: false, label: null, finding: '', fix: '', impact: '', raw: text }
+  let currentField: 'finding' | 'fix' | 'impact' | null = null
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    if (trimmed.startsWith('⚠ Suspicious activity detected')) { result.label = 'Suspicious activity detected'; continue }
+    if (trimmed.startsWith('🔐 Key at risk')) { result.label = 'Key at risk'; continue }
+
+    if (trimmed.startsWith('Finding:')) { currentField = 'finding'; result.finding = trimmed.replace('Finding:', '').trim(); result.isStructured = true; continue }
+    if (trimmed.startsWith('Fix:')) { currentField = 'fix'; result.fix = trimmed.replace('Fix:', '').trim(); result.isStructured = true; continue }
+    if (trimmed.startsWith('Impact:')) { currentField = 'impact'; result.impact = trimmed.replace('Impact:', '').trim(); result.isStructured = true; continue }
+
+    if (currentField) {
+      result[currentField] += '\n' + trimmed
+    }
+  }
+  return result
 }
 
 export function AiPanel({ open, onClose }: AiPanelProps) {
@@ -138,7 +161,8 @@ export function AiPanel({ open, onClose }: AiPanelProps) {
         aria-hidden={!open}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/80 backdrop-blur shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/80 backdrop-blur shrink-0 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-emerald-400 opacity-70" />
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-primary" />
@@ -167,26 +191,55 @@ export function AiPanel({ open, onClose }: AiPanelProps) {
                   <span>{msg.content}</span>
                 </div>
               ) : msg.type === 'user' ? (
-                <div className="max-w-[85%] px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm leading-relaxed rounded-br-sm">
+                <div className="max-w-[85%] px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm leading-relaxed rounded-br-sm shadow-sm animate-in fade-in slide-in-from-right-2 duration-300">
                   {msg.content}
                 </div>
               ) : (
-                /* Assistant — render Markdown */
-                <div className="max-w-[92%] px-3 py-2.5 rounded-xl bg-input border border-border text-foreground text-sm leading-relaxed rounded-bl-sm prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown
-                    components={{
-                      p:      ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                      strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
-                      ul:     ({ children }) => <ul className="list-disc pl-4 space-y-0.5 mb-1.5">{children}</ul>,
-                      ol:     ({ children }) => <ol className="list-decimal pl-4 space-y-0.5 mb-1.5">{children}</ol>,
-                      li:     ({ children }) => <li className="text-foreground">{children}</li>,
-                      code:   ({ children }) => <code className="bg-background px-1 py-0.5 rounded text-primary font-mono text-xs">{children}</code>,
-                      h3:     ({ children }) => <h3 className="font-bold text-foreground mt-2 mb-1">{children}</h3>,
-                      h4:     ({ children }) => <h4 className="font-semibold text-foreground mt-1.5 mb-0.5">{children}</h4>,
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+                /* Assistant Message */
+                <div className="max-w-[95%] animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  {(() => {
+                    const parsed = parseAiResponse(msg.content)
+                    if (!parsed.isStructured) {
+                      return (
+                        <div className="px-3 py-2.5 rounded-xl bg-input border border-border text-foreground text-sm leading-relaxed rounded-bl-sm shadow-sm">
+                          <ReactMarkdown>{parsed.raw}</ReactMarkdown>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div className="space-y-2">
+                        {parsed.label && (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold mb-1">
+                            <ShieldAlert className="w-3.5 h-3.5" /> {parsed.label}
+                          </div>
+                        )}
+                        
+                        {parsed.finding && (
+                          <div className="p-3 rounded-xl rounded-bl-sm bg-amber-500/10 border border-amber-500/20 text-sm">
+                            <div className="flex items-center gap-1.5 font-semibold text-amber-500 mb-1">
+                              <AlertTriangle className="w-4 h-4" /> Finding
+                            </div>
+                            <div className="text-foreground/90 leading-relaxed"><ReactMarkdown>{parsed.finding}</ReactMarkdown></div>
+                          </div>
+                        )}
+                        
+                        {parsed.fix && (
+                          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-sm">
+                            <div className="flex items-center gap-1.5 font-semibold text-emerald-500 mb-1">
+                              <Wrench className="w-4 h-4" /> Recommended Fix
+                            </div>
+                            <div className="text-foreground/90 leading-relaxed"><ReactMarkdown>{parsed.fix}</ReactMarkdown></div>
+                          </div>
+                        )}
+
+                        {parsed.impact && (
+                          <div className="px-3 py-2.5 rounded-xl bg-input border border-border text-xs text-muted-foreground leading-relaxed">
+                            <strong className="text-foreground/70">Impact: </strong> <ReactMarkdown components={{ p: ({children}) => <span className="inline">{children}</span> }}>{parsed.impact}</ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
